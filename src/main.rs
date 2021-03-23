@@ -1,4 +1,5 @@
 use clap::{Clap, crate_version, crate_authors};
+use warp::{Filter, reply::Reply};
 
 /// Tennis is a very simple static website server for local development.
 #[derive(Clap)]
@@ -23,7 +24,22 @@ async fn main() {
         opts.port
     );
 
-    warp::serve(warp::fs::dir(opts.directory))
+    let route = warp::fs::dir(opts.directory)
+        .map(|reply: warp::filters::fs::File| {
+            println!("Serving {:?}", reply.path());
+            match reply.path().extension() {
+                Some(ext) if ext == "html" => {
+                    println!("html!");
+                    return warp::reply::html("<h1>Intercepted!</h1>").into_response();
+                },
+                _ => {
+                    println!("not html!");
+                    return reply.into_response();
+                },
+            }
+        });
+
+    warp::serve(route)
         .run(([127, 0, 0, 1], opts.port))
         .await;
 }

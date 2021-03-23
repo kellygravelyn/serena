@@ -1,5 +1,6 @@
 use clap::{Clap, crate_version, crate_authors};
 use warp::{Filter, reply::Reply};
+use std::fs;
 
 /// Tennis is a very simple static website server for local development.
 #[derive(Clap)]
@@ -25,16 +26,15 @@ async fn main() {
     );
 
     let route = warp::fs::dir(opts.directory)
-        .map(|reply: warp::filters::fs::File| {
-            println!("Serving {:?}", reply.path());
-            match reply.path().extension() {
+        .map(|file: warp::filters::fs::File| {
+            match file.path().extension() {
                 Some(ext) if ext == "html" => {
-                    println!("html!");
-                    return warp::reply::html("<h1>Intercepted!</h1>").into_response();
+                    let mut html = fs::read_to_string(file.path()).unwrap();
+                    html.push_str("<h1>BOO!</h1>");
+                    return warp::reply::html(html).into_response();
                 },
                 _ => {
-                    println!("not html!");
-                    return reply.into_response();
+                    return file.into_response();
                 },
             }
         });

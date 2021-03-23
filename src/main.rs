@@ -15,6 +15,11 @@ struct Opts {
     port: u16,
 }
 
+static INJECTED_SCRIPT: &str = "
+<script>
+    console.log('boo');
+</script>
+";
 #[tokio::main]
 async fn main() {
     let opts = Opts::parse();
@@ -30,7 +35,7 @@ async fn main() {
             match file.path().extension() {
                 Some(ext) if ext == "html" => {
                     let mut html = fs::read_to_string(file.path()).unwrap();
-                    html.push_str("<h1>BOO!</h1>");
+                    html.push_str(INJECTED_SCRIPT);
                     return warp::reply::html(html).into_response();
                 },
                 _ => {

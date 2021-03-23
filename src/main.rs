@@ -19,28 +19,15 @@ struct Opts {
 static INJECTED_SCRIPT: &str = "
 <script>
     const socket = new WebSocket(`ws://${location.host}/__tennis`);
-
-    socket.onopen = (e) => {
-      socket.send('Hello, world!');
-    };
-
-    socket.onmessage = (e) => {
-      alert(`[message] Data received from server: ${event.data}`);
-    };
-
+    socket.onmessage = (e) => location.reload();
     socket.onclose = (e) => {
-      if (event.wasClean) {
-        alert(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
-      } else {
-        alert('[close] Connection died');
-      }
-    };
-
-    socket.onerror = (error) => {
-      alert(`[error] ${error.message}`);
+        // TODO: Try to reconnect over time to support cases where
+        // the server is stopped and then restarted so the page
+        // automatically reloads when the server starts up again.
     };
 </script>
 ";
+
 #[tokio::main]
 async fn main() {
     let opts = Opts::parse();

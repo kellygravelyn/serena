@@ -1,6 +1,7 @@
-use clap::{Clap, crate_version, crate_authors};
-use warp::{Filter, reply::Reply};
 use std::fs;
+use clap::{Clap, crate_version, crate_authors};
+use futures::{FutureExt, StreamExt};
+use warp::{Filter, reply::Reply};
 
 /// Tennis is a very simple static website server for local development.
 #[derive(Clap)]
@@ -17,7 +18,27 @@ struct Opts {
 
 static INJECTED_SCRIPT: &str = "
 <script>
-    console.log('boo');
+    const socket = new WebSocket(`ws://${location.host}/__tennis`);
+
+    socket.onopen = (e) => {
+      socket.send('Hello, world!');
+    };
+
+    socket.onmessage = (e) => {
+      alert(`[message] Data received from server: ${event.data}`);
+    };
+
+    socket.onclose = (e) => {
+      if (event.wasClean) {
+        alert(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+      } else {
+        alert('[close] Connection died');
+      }
+    };
+
+    socket.onerror = (error) => {
+      alert(`[error] ${error.message}`);
+    };
 </script>
 ";
 #[tokio::main]
@@ -30,7 +51,20 @@ async fn main() {
         opts.port
     );
 
-    let route = warp::fs::dir(opts.directory)
+    let watch = warp::path("__tennis")
+        .and(warp::ws())
+        .map(|ws: warp::ws::Ws| {
+            ws.on_upgrade(|websocket| {
+                let (tx, rx) = websocket.split();
+                rx.forward(tx).map(|result| {
+                    if let Err(e) = result {
+                        eprintln!("websocket error: {:?}", e);
+                    }
+                })
+            })
+        });
+
+    let file = warp::fs::dir(opts.directory)
         .map(|file: warp::filters::fs::File| {
             match file.path().extension() {
                 Some(ext) if ext == "html" => {
@@ -44,7 +78,7 @@ async fn main() {
             }
         });
 
-    warp::serve(route)
+    warp::serve(watch.or(file))
         .run(([127, 0, 0, 1], opts.port))
         .await;
 }

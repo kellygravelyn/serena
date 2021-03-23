@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 warp = "0.3"
+clap = "3.0.0-beta.2"

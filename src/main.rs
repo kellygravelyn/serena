@@ -1,6 +1,8 @@
 use std::fs;
+use std::time::Duration;
 use clap::{Clap, crate_version, crate_authors};
-use futures::{FutureExt, StreamExt};
+use futures::{FutureExt, StreamExt, executor::ThreadPool};
+use notify::{RecommendedWatcher, Watcher, RecursiveMode, DebouncedEvent};
 use warp::{Filter, reply::Reply};
 
 /// Tennis is a very simple static website server for local development.
@@ -32,6 +34,27 @@ static INJECTED_SCRIPT: &str = "
 </script>
 ";
 
+async fn watch_for_file_changes(directory: String) {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let mut watcher: RecommendedWatcher = Watcher::new(tx, Duration::from_millis(200)).unwrap();
+    watcher.watch(directory, RecursiveMode::Recursive).unwrap();
+
+    loop {
+        match rx.recv() {
+            Ok(event) => {
+                match event {
+                    DebouncedEvent::Write(p) => println!("File changed: {:?}", p),
+                    DebouncedEvent::Remove(p) => println!("File removed: {:?}", p),
+                    DebouncedEvent::Rename(p1, p2) => println!("File renamed: {:?} -> {:?}", p1, p2),
+                    DebouncedEvent::Rescan => println!("Directory had to be rescanned"),
+                    _ => {},
+                }
+            },
+            Err(e) => println!("Error watching: {:?}", e),
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let opts = Opts::parse();
@@ -41,11 +64,13 @@ async fn main() {
         opts.directory,
         opts.port
     );
-    if opts.watch {
-        println!("Watching {} for changes…", opts.directory)
-    }
 
     let wants_to_watch = opts.watch;
+    let pool = ThreadPool::new().unwrap();
+    if wants_to_watch {
+        println!("Watching {} for changes…", opts.directory);
+        pool.spawn_ok(watch_for_file_changes(opts.directory.clone()));
+    }
 
     let watch = warp::path("__tennis")
         .and(warp::ws())
@@ -77,7 +102,6 @@ async fn main() {
                 file.into_response()
             }
         });
-
 
     warp::serve(watch.or(file))
         .run(([127, 0, 0, 1], opts.port))

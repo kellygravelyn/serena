@@ -14,6 +14,10 @@ struct Opts {
     /// The port on which to run the server.
     #[clap(short, long, default_value = "3000")]
     port: u16,
+
+    /// Automatically refresh the page when a change to the files is detected.
+    #[clap(short, long)]
+    watch: bool,
 }
 
 static INJECTED_SCRIPT: &str = "
@@ -38,6 +42,8 @@ async fn main() {
         opts.port
     );
 
+    let wants_to_watch = opts.watch;
+
     let watch = warp::path("__tennis")
         .and(warp::ws())
         .map(|ws: warp::ws::Ws| {
@@ -52,18 +58,23 @@ async fn main() {
         });
 
     let file = warp::fs::dir(opts.directory)
-        .map(|file: warp::filters::fs::File| {
-            match file.path().extension() {
-                Some(ext) if ext == "html" => {
-                    let mut html = fs::read_to_string(file.path()).unwrap();
-                    html.push_str(INJECTED_SCRIPT);
-                    return warp::reply::html(html).into_response();
-                },
-                _ => {
-                    return file.into_response();
-                },
+        .map(move |file: warp::filters::fs::File| {
+            if wants_to_watch {
+                match file.path().extension() {
+                    Some(ext) if ext == "html" => {
+                        let mut html = fs::read_to_string(file.path()).unwrap();
+                        html.push_str(INJECTED_SCRIPT);
+                        warp::reply::html(html).into_response()
+                    },
+                    _ => {
+                        file.into_response()
+                    },
+                }
+            } else {
+                file.into_response()
             }
         });
+
 
     warp::serve(watch.or(file))
         .run(([127, 0, 0, 1], opts.port))

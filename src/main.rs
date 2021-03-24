@@ -37,10 +37,13 @@ async fn main() {
     let opts = Opts::parse();
 
     println!(
-        "Hosting static files from {} at localhost:{}",
+        "Serving static files from {} at localhost:{}",
         opts.directory,
         opts.port
     );
+    if opts.watch {
+        println!("Watching {} for changes…", opts.directory)
+    }
 
     let wants_to_watch = opts.watch;
 

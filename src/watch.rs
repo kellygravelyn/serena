@@ -1,5 +1,7 @@
 use std::time::Duration;
+use futures::{SinkExt, StreamExt};
 use notify::{RecommendedWatcher, Watcher, RecursiveMode, DebouncedEvent};
+use warp::ws::{Message, WebSocket};
 
 static INJECTED_SCRIPT: &str = "
 <script>
@@ -52,6 +54,15 @@ pub async fn watch_for_file_changes(directory: String, refresh: tokio::sync::bro
             Err(e) => println!("Error watching: {:?}", e),
         }
     }
+}
+
+pub async fn handle_websocket_client(
+    websocket: WebSocket, 
+    mut refresh_receiver: tokio::sync::broadcast::Receiver<()>
+) {
+    let (mut tx, _) = websocket.split();
+    let _ = refresh_receiver.recv().await;
+    let _ = tx.send(Message::text("")).await;
 }
 
 pub fn attach_script(html: &mut String) {

@@ -1,7 +1,6 @@
 use std::fs;
-use futures::{FutureExt, StreamExt, executor::ThreadPool};
-use tokio_stream::wrappers::BroadcastStream;
-use warp::{Filter, reply::Reply, ws::Message};
+use futures::executor::ThreadPool;
+use warp::{Filter, reply::Reply};
 
 mod opts;
 mod watch;
@@ -21,19 +20,14 @@ async fn main() {
     let (refresh_tx, _) = tokio::sync::broadcast::channel::<()>(32);
     
     let tx2 = refresh_tx.clone();
-    let refresh_stream = warp::any().map(move || tx2.subscribe());
+    let refresh_receiver = warp::any().map(move || tx2.subscribe());
 
     let watch = warp::path("__tennis")
         .and(warp::ws())
-        .and(refresh_stream)
-        .map(|ws: warp::ws::Ws, refresh_stream: tokio::sync::broadcast::Receiver<()>| {
+        .and(refresh_receiver)
+        .map(|ws: warp::ws::Ws, refresh_receiver: tokio::sync::broadcast::Receiver<()>| {
             ws.on_upgrade(move |websocket| {
-                let (tx, _) = websocket.split();
-                BroadcastStream::new(refresh_stream).map(|_| Ok(Message::text(""))).forward(tx).map(|result| {
-                    if let Err(e) = result {
-                        eprintln!("websocket error: {:?}", e);
-                    }
-                })
+                watch::handle_websocket_client(websocket, refresh_receiver)
             })
         });
 

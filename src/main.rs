@@ -1,5 +1,9 @@
-use std::fs;
-use warp::{Filter, reply::Reply};
+use std::{net::SocketAddr, path::Path};
+
+use tokio::fs::File;
+use tokio_util::codec::{BytesCodec, FramedRead};
+use hyper::{Error, service::{make_service_fn, service_fn}};
+use hyper::{Body, Method, Request, Response, Result, Server, StatusCode};
 
 mod opts;
 mod watch;
@@ -7,47 +11,60 @@ mod watch;
 #[tokio::main]
 async fn main() {
     let opts = opts::parse();
-
+    let addr = SocketAddr::from(([127, 0, 0, 1], opts.port));
+    
     println!(
-        "Serving static files from {} at localhost:{}",
+        "Serving static files from {} at http://{}",
         opts.directory,
-        opts.port
+        addr
     );
 
-    let wants_to_watch = opts.watch;
-    let refresh_sender = watch::initialize_watching(
-        opts.directory.clone(),
-        wants_to_watch
-    );
+    let root_dir = opts.directory.clone();
+    let make_service = make_service_fn(move |_| {
+        let root_dir = root_dir.clone();
+        async move { 
+            Ok::<_, Error>(service_fn(move |req| {
+                routes(req, root_dir.clone())
+            }))
+        }
+    });
 
-    let watch = warp::path("__tennis")
-        .and(warp::ws())
-        .and(warp::any().map(move || refresh_sender.subscribe()))
-        .map(|ws: warp::ws::Ws, refresh_receiver: tokio::sync::broadcast::Receiver<()>| {
-            ws.on_upgrade(move |websocket| {
-                watch::handle_websocket_client(websocket, refresh_receiver)
-            })
-        });
+    let server = Server::bind(&addr).serve(make_service);
 
-    let file = warp::fs::dir(opts.directory.clone())
-        .map(move |file: warp::filters::fs::File| {
-            if wants_to_watch {
-                match file.path().extension() {
-                    Some(ext) if ext == "html" => {
-                        let mut html = fs::read_to_string(file.path()).unwrap();
-                        watch::attach_script(&mut html);
-                        warp::reply::html(html).into_response()
-                    },
-                    _ => {
-                        file.into_response()
-                    },
-                }
-            } else {
-                file.into_response()
-            }
-        });
+    if let Err(e) = server.await {
+        eprintln!("server error: {}", e);
+    }
+}
 
-    warp::serve(watch.or(file))
-        .run(([127, 0, 0, 1], opts.port))
-        .await;
+async fn routes(req: Request<Body>, root_dir: String) -> Result<Response<Body>> {
+    let path = req.uri().path();
+    if path == "/__tennis" {
+        Ok(Response::new("Websocket eventually".into()))
+    } else {
+        transfer_static_file(path, root_dir).await
+    }
+}
+
+static NOTFOUND: &[u8] = b"Not Found";
+fn not_found() -> Response<Body> {
+    Response::builder()
+        .status(StatusCode::NOT_FOUND)
+        .body(NOTFOUND.into())
+        .unwrap()
+}
+
+async fn transfer_static_file(path: &str, root_dir: String) -> Result<Response<Body>> {
+    let trimmed_characters: &[_] = &['/', '.'];
+    let mut filepath = Path::new(&root_dir).join(path.trim_start_matches(trimmed_characters));
+    if filepath.is_dir() {
+        filepath = filepath.join("index.html");
+    }
+
+    if let Ok(file) = File::open(filepath).await {
+        let stream = FramedRead::new(file, BytesCodec::new());
+        let body = Body::wrap_stream(stream);
+        return Ok(Response::new(body));
+    }
+
+    Ok(not_found())
 }

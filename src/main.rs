@@ -1,27 +1,11 @@
 use std::fs;
 use std::time::Duration;
-use clap::{Clap, crate_version, crate_authors};
 use futures::{FutureExt, StreamExt, executor::ThreadPool};
 use notify::{RecommendedWatcher, Watcher, RecursiveMode, DebouncedEvent};
 use tokio_stream::wrappers::BroadcastStream;
 use warp::{Filter, reply::Reply, ws::Message};
 
-/// Tennis is a very simple static website server for local development.
-#[derive(Clap)]
-#[clap(version = crate_version!(), author = crate_authors!())]
-struct Opts {
-    /// The directory that will act as the root for static files.
-    #[clap(default_value = ".")]
-    directory: String,
-
-    /// The port on which to run the server.
-    #[clap(short, long, default_value = "3000")]
-    port: u16,
-
-    /// Automatically refresh the page when a change to the files is detected.
-    #[clap(short, long)]
-    watch: bool,
-}
+mod opts;
 
 static INJECTED_SCRIPT: &str = "
 <script>
@@ -78,7 +62,7 @@ async fn watch_for_file_changes(directory: String, refresh: tokio::sync::broadca
 
 #[tokio::main]
 async fn main() {
-    let opts = Opts::parse();
+    let opts = opts::parse();
 
     println!(
         "Serving static files from {} at localhost:{}",

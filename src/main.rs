@@ -44,12 +44,11 @@ async fn routes(req: Request<Body>, root_dir: String) -> Result<Response<Body>> 
     }
 }
 
-static NOTFOUND: &[u8] = b"Not Found";
 fn not_found() -> Result<Response<Body>> {
     Ok(
         Response::builder()
             .status(StatusCode::NOT_FOUND)
-            .body(NOTFOUND.into())
+            .body(Body::from(""))
             .unwrap()
     )
 }

@@ -82,12 +82,10 @@ async fn file_stream_response(file: File) -> Result<Response<Body>> {
 
 fn is_html_file(filepath: &Path) -> bool {
     if let Some(ext) = filepath.extension() {
-        if ext == "html" { 
-            return true;
-        }
+        ext == "html"
+    } else {
+        false
     }
-
-    false
 }
 
 fn build_file_path(path: &str, root_dir: &String) -> PathBuf {

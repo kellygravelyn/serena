@@ -1,64 +1,10 @@
 use std::fs;
-use std::time::Duration;
 use futures::{FutureExt, StreamExt, executor::ThreadPool};
-use notify::{RecommendedWatcher, Watcher, RecursiveMode, DebouncedEvent};
 use tokio_stream::wrappers::BroadcastStream;
 use warp::{Filter, reply::Reply, ws::Message};
 
 mod opts;
-
-static INJECTED_SCRIPT: &str = "
-<script>
-    const socket = new WebSocket(`ws://${location.host}/__tennis`);
-    socket.onmessage = (e) => location.reload();
-    socket.onclose = (e) => {
-        // TODO: Try to reconnect over time to support cases where
-        // the server is stopped and then restarted so the page
-        // automatically reloads when the server starts up again.
-    };
-</script>
-";
-
-async fn watch_for_file_changes(directory: String, refresh: tokio::sync::broadcast::Sender<()>) {
-    let (tx, rx) = std::sync::mpsc::channel();
-    let mut watcher: RecommendedWatcher = Watcher::new(tx, Duration::from_millis(200)).unwrap();
-    watcher.watch(directory, RecursiveMode::Recursive).unwrap();
-
-    loop {
-        match rx.recv() {
-            Ok(event) => {
-                match event {
-                    DebouncedEvent::Write(p) => {
-                        println!("File changed: {:?}", p);
-
-                        // ignore errors for now
-                        let _ = refresh.send(());
-                    },
-                    DebouncedEvent::Remove(p) => {
-                        println!("File removed: {:?}", p);
-
-                        // ignore errors for now
-                        let _ = refresh.send(());
-                    },
-                    DebouncedEvent::Rename(p1, p2) => {
-                        println!("File renamed: {:?} -> {:?}", p1, p2);
-
-                        // ignore errors for now
-                        let _ = refresh.send(());
-                    },
-                    DebouncedEvent::Rescan => {
-                        println!("Directory had to be rescanned");
-
-                        // ignore errors for now
-                        let _ = refresh.send(());
-                    },
-                    _ => {},
-                }
-            },
-            Err(e) => println!("Error watching: {:?}", e),
-        }
-    }
-}
+mod watch;
 
 #[tokio::main]
 async fn main() {
@@ -97,7 +43,7 @@ async fn main() {
                 match file.path().extension() {
                     Some(ext) if ext == "html" => {
                         let mut html = fs::read_to_string(file.path()).unwrap();
-                        html.push_str(INJECTED_SCRIPT);
+                        watch::attach_script(&mut html);
                         warp::reply::html(html).into_response()
                     },
                     _ => {
@@ -111,7 +57,7 @@ async fn main() {
 
     if wants_to_watch {
         println!("Watching {} for changes…", opts.directory);
-        pool.spawn_ok(watch_for_file_changes(opts.directory.clone(), refresh_tx));
+        pool.spawn_ok(watch::watch_for_file_changes(opts.directory.clone(), refresh_tx));
     }
 
     warp::serve(watch.or(file))

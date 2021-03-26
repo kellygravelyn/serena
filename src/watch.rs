@@ -6,13 +6,34 @@ use warp::ws::{Message, WebSocket};
 
 static INJECTED_SCRIPT: &str = "
 <script>
-    const socket = new WebSocket(`ws://${location.host}/__tennis`);
-    socket.onmessage = (e) => location.reload();
-    socket.onclose = (e) => {
-        // TODO: Try to reconnect over time to support cases where
-        // the server is stopped and then restarted so the page
-        // automatically reloads when the server starts up again.
-    };
+    (() => {
+        let socket = null;
+        let wasDisconnected = false;
+        let connectionAttempts = 0;
+        const openConnection = () => {
+            console.log('[Tennis] Connecting to web socket for automatic page reload', `ws://${location.host}/__tennis`);
+            socket = new WebSocket(`ws://${location.host}/__tennis`);
+            socket.onopen = () => {
+                connectionAttempts = 0;
+                if (wasDisconnected) {
+                    location.reload();
+                }
+            };
+            socket.onmessage = () => location.reload();
+            socket.onclose = () => {
+                wasDisconnected = true;
+                connectionAttempts++;
+
+                if (connectionAttempts < 12) {
+                    console.log('[Tennis] Web socket closed. Trying to reconnect in 5 seconds.');
+                    setTimeout(openConnection, 5000);
+                } else {
+                    console.log('[Tennis] Failed to reconnect to the websocket. Will no longer attempt to reconnect. Manually refresh the page once you have restarted the server.');
+                }
+            };
+        };
+        openConnection();
+    })();
 </script>
 ";
 

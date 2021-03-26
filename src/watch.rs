@@ -90,14 +90,13 @@ pub async fn handle_websocket_client(
 pub fn initialize_watching(directory: String, wants_to_watch: bool) -> Sender<()> {
     let pool = ThreadPool::new().unwrap();
     let (refresh_sender, _) = tokio::sync::broadcast::channel::<()>(32);
-    let refresh_sender2 = refresh_sender.clone();
 
     if wants_to_watch {
         println!("Watching {} for changes…", directory);
-        pool.spawn_ok(watch_for_file_changes(directory, refresh_sender));
+        pool.spawn_ok(watch_for_file_changes(directory, refresh_sender.clone()));
     }
 
-    refresh_sender2
+    refresh_sender
 }
 
 pub fn attach_script(html: &mut String) {

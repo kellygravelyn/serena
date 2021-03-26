@@ -1,13 +1,8 @@
-use std::{convert::Infallible, fs};
-use tokio::sync::broadcast::{Receiver, Sender};
+use std::fs;
 use warp::{Filter, reply::Reply};
 
 mod opts;
 mod watch;
-
-fn refresh_receiver(sender: Sender<()>) -> impl Filter<Extract = (Receiver<()>, ), Error = Infallible> + Clone {
-    warp::any().map(move || sender.subscribe())
-}
 
 #[tokio::main]
 async fn main() {
@@ -27,7 +22,7 @@ async fn main() {
 
     let watch = warp::path("__tennis")
         .and(warp::ws())
-        .and(refresh_receiver(refresh_sender.clone()))
+        .and(warp::any().map(move || refresh_sender.subscribe()))
         .map(|ws: warp::ws::Ws, refresh_receiver: tokio::sync::broadcast::Receiver<()>| {
             ws.on_upgrade(move |websocket| {
                 watch::handle_websocket_client(websocket, refresh_receiver)

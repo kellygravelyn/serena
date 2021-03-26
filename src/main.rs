@@ -68,9 +68,17 @@ async fn transfer_static_file(path: &str, root_dir: String) -> Result<Response<B
 
 async fn html_response(mut file: File) -> Result<Response<Body>> {
     let mut html = String::new();
-    let _ = file.read_to_string(&mut html).await;
-    watch::attach_script(&mut html);
-    Ok(Response::new(Body::from(html)))
+    if let Ok(_) = file.read_to_string(&mut html).await {
+        watch::attach_script(&mut html);
+        Ok(Response::new(Body::from(html)))
+    } else {
+        Ok(
+            Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::from("Failed to read file"))
+                .unwrap()
+        )
+    }
 }
 
 async fn file_stream_response(file: File) -> Result<Response<Body>> {

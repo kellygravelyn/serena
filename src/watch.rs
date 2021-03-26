@@ -1,6 +1,7 @@
 use std::time::Duration;
-use futures::{SinkExt, StreamExt};
+use futures::{SinkExt, StreamExt, executor::ThreadPool};
 use notify::{RecommendedWatcher, Watcher, RecursiveMode, DebouncedEvent};
+use tokio::sync::broadcast::{Receiver, Sender};
 use warp::ws::{Message, WebSocket};
 
 static INJECTED_SCRIPT: &str = "
@@ -15,7 +16,7 @@ static INJECTED_SCRIPT: &str = "
 </script>
 ";
 
-pub async fn watch_for_file_changes(directory: String, refresh: tokio::sync::broadcast::Sender<()>) {
+async fn watch_for_file_changes(directory: String, refresh: tokio::sync::broadcast::Sender<()>) {
     let (tx, rx) = std::sync::mpsc::channel();
     let mut watcher: RecommendedWatcher = Watcher::new(tx, Duration::from_millis(200)).unwrap();
     watcher.watch(directory, RecursiveMode::Recursive).unwrap();
@@ -58,11 +59,24 @@ pub async fn watch_for_file_changes(directory: String, refresh: tokio::sync::bro
 
 pub async fn handle_websocket_client(
     websocket: WebSocket, 
-    mut refresh_receiver: tokio::sync::broadcast::Receiver<()>
+    mut refresh_receiver: Receiver<()>
 ) {
     let (mut tx, _) = websocket.split();
     let _ = refresh_receiver.recv().await;
     let _ = tx.send(Message::text("")).await;
+}
+
+pub fn initialize_watching(directory: String, wants_to_watch: bool) -> Sender<()> {
+    let pool = ThreadPool::new().unwrap();
+    let (refresh_sender, _) = tokio::sync::broadcast::channel::<()>(32);
+    let refresh_sender2 = refresh_sender.clone();
+
+    if wants_to_watch {
+        println!("Watching {} for changes…", directory);
+        pool.spawn_ok(watch_for_file_changes(directory, refresh_sender));
+    }
+
+    refresh_sender2
 }
 
 pub fn attach_script(html: &mut String) {

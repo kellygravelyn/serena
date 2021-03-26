@@ -1,5 +1,4 @@
 use std::{convert::Infallible, fs};
-use futures::executor::ThreadPool;
 use tokio::sync::broadcast::{Receiver, Sender};
 use warp::{Filter, reply::Reply};
 
@@ -21,8 +20,10 @@ async fn main() {
     );
 
     let wants_to_watch = opts.watch;
-    let pool = ThreadPool::new().unwrap();
-    let (refresh_sender, _) = tokio::sync::broadcast::channel::<()>(32);
+    let refresh_sender = watch::initialize_watching(
+        opts.directory.clone(),
+        wants_to_watch
+    );
 
     let watch = warp::path("__tennis")
         .and(warp::ws())
@@ -50,11 +51,6 @@ async fn main() {
                 file.into_response()
             }
         });
-
-    if wants_to_watch {
-        println!("Watching {} for changes…", opts.directory);
-        pool.spawn_ok(watch::watch_for_file_changes(opts.directory.clone(), refresh_sender));
-    }
 
     warp::serve(watch.or(file))
         .run(([127, 0, 0, 1], opts.port))

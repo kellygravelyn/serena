@@ -3,7 +3,8 @@ use std::time::Duration;
 use clap::{Clap, crate_version, crate_authors};
 use futures::{FutureExt, StreamExt, executor::ThreadPool};
 use notify::{RecommendedWatcher, Watcher, RecursiveMode, DebouncedEvent};
-use warp::{Filter, reply::Reply};
+use tokio_stream::wrappers::BroadcastStream;
+use warp::{Filter, reply::Reply, ws::Message};
 
 /// Tennis is a very simple static website server for local development.
 #[derive(Clap)]
@@ -34,7 +35,7 @@ static INJECTED_SCRIPT: &str = "
 </script>
 ";
 
-async fn watch_for_file_changes(directory: String) {
+async fn watch_for_file_changes(directory: String, refresh: tokio::sync::broadcast::Sender<()>) {
     let (tx, rx) = std::sync::mpsc::channel();
     let mut watcher: RecommendedWatcher = Watcher::new(tx, Duration::from_millis(200)).unwrap();
     watcher.watch(directory, RecursiveMode::Recursive).unwrap();
@@ -43,10 +44,30 @@ async fn watch_for_file_changes(directory: String) {
         match rx.recv() {
             Ok(event) => {
                 match event {
-                    DebouncedEvent::Write(p) => println!("File changed: {:?}", p),
-                    DebouncedEvent::Remove(p) => println!("File removed: {:?}", p),
-                    DebouncedEvent::Rename(p1, p2) => println!("File renamed: {:?} -> {:?}", p1, p2),
-                    DebouncedEvent::Rescan => println!("Directory had to be rescanned"),
+                    DebouncedEvent::Write(p) => {
+                        println!("File changed: {:?}", p);
+
+                        // ignore errors for now
+                        let _ = refresh.send(());
+                    },
+                    DebouncedEvent::Remove(p) => {
+                        println!("File removed: {:?}", p);
+
+                        // ignore errors for now
+                        let _ = refresh.send(());
+                    },
+                    DebouncedEvent::Rename(p1, p2) => {
+                        println!("File renamed: {:?} -> {:?}", p1, p2);
+
+                        // ignore errors for now
+                        let _ = refresh.send(());
+                    },
+                    DebouncedEvent::Rescan => {
+                        println!("Directory had to be rescanned");
+
+                        // ignore errors for now
+                        let _ = refresh.send(());
+                    },
                     _ => {},
                 }
             },
@@ -67,17 +88,18 @@ async fn main() {
 
     let wants_to_watch = opts.watch;
     let pool = ThreadPool::new().unwrap();
-    if wants_to_watch {
-        println!("Watching {} for changes…", opts.directory);
-        pool.spawn_ok(watch_for_file_changes(opts.directory.clone()));
-    }
+    let (refresh_tx, _) = tokio::sync::broadcast::channel::<()>(32);
+    
+    let tx2 = refresh_tx.clone();
+    let refresh_stream = warp::any().map(move || tx2.subscribe());
 
     let watch = warp::path("__tennis")
         .and(warp::ws())
-        .map(|ws: warp::ws::Ws| {
-            ws.on_upgrade(|websocket| {
-                let (tx, rx) = websocket.split();
-                rx.forward(tx).map(|result| {
+        .and(refresh_stream)
+        .map(|ws: warp::ws::Ws, refresh_stream: tokio::sync::broadcast::Receiver<()>| {
+            ws.on_upgrade(move |websocket| {
+                let (tx, _) = websocket.split();
+                BroadcastStream::new(refresh_stream).map(|_| Ok(Message::text(""))).forward(tx).map(|result| {
                     if let Err(e) = result {
                         eprintln!("websocket error: {:?}", e);
                     }
@@ -85,7 +107,7 @@ async fn main() {
             })
         });
 
-    let file = warp::fs::dir(opts.directory)
+    let file = warp::fs::dir(opts.directory.clone())
         .map(move |file: warp::filters::fs::File| {
             if wants_to_watch {
                 match file.path().extension() {
@@ -102,6 +124,11 @@ async fn main() {
                 file.into_response()
             }
         });
+
+    if wants_to_watch {
+        println!("Watching {} for changes…", opts.directory);
+        pool.spawn_ok(watch_for_file_changes(opts.directory.clone(), refresh_tx));
+    }
 
     warp::serve(watch.or(file))
         .run(([127, 0, 0, 1], opts.port))

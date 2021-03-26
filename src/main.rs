@@ -1,9 +1,8 @@
-use std::{net::SocketAddr, path::Path};
+use std::{net::SocketAddr, path::{Path, PathBuf}};
 
-use tokio::fs::File;
+use tokio::{fs::File, io::AsyncReadExt}; 
 use tokio_util::codec::{BytesCodec, FramedRead};
-use hyper::{Error, service::{make_service_fn, service_fn}};
-use hyper::{Body, Method, Request, Response, Result, Server, StatusCode};
+use hyper::{Body, Error, Request, Response, Result, Server, StatusCode, service::{make_service_fn, service_fn}};
 
 mod opts;
 mod watch;
@@ -46,25 +45,56 @@ async fn routes(req: Request<Body>, root_dir: String) -> Result<Response<Body>> 
 }
 
 static NOTFOUND: &[u8] = b"Not Found";
-fn not_found() -> Response<Body> {
-    Response::builder()
-        .status(StatusCode::NOT_FOUND)
-        .body(NOTFOUND.into())
-        .unwrap()
+fn not_found() -> Result<Response<Body>> {
+    Ok(
+        Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(NOTFOUND.into())
+            .unwrap()
+    )
 }
 
 async fn transfer_static_file(path: &str, root_dir: String) -> Result<Response<Body>> {
+    let filepath = build_file_path(&path, &root_dir);
+    if let Ok(file) = File::open(&filepath).await {
+        if is_html_file(&filepath) {
+            html_response(file).await
+        } else {
+            file_stream_response(file).await
+        }
+    } else {
+        not_found()
+    }
+}
+
+async fn html_response(mut file: File) -> Result<Response<Body>> {
+    let mut html = String::new();
+    let _ = file.read_to_string(&mut html).await;
+    watch::attach_script(&mut html);
+    Ok(Response::new(Body::from(html)))
+}
+
+async fn file_stream_response(file: File) -> Result<Response<Body>> {
+    let stream = FramedRead::new(file, BytesCodec::new());
+    let body = Body::wrap_stream(stream);
+    Ok(Response::new(body))
+}
+
+fn is_html_file(filepath: &Path) -> bool {
+    if let Some(ext) = filepath.extension() {
+        if ext == "html" { 
+            return true;
+        }
+    }
+
+    false
+}
+
+fn build_file_path(path: &str, root_dir: &String) -> PathBuf {
     let trimmed_characters: &[_] = &['/', '.'];
     let mut filepath = Path::new(&root_dir).join(path.trim_start_matches(trimmed_characters));
     if filepath.is_dir() {
         filepath = filepath.join("index.html");
     }
-
-    if let Ok(file) = File::open(filepath).await {
-        let stream = FramedRead::new(file, BytesCodec::new());
-        let body = Body::wrap_stream(stream);
-        return Ok(Response::new(body));
-    }
-
-    Ok(not_found())
+    filepath
 }

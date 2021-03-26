@@ -1,9 +1,14 @@
-use std::fs;
+use std::{convert::Infallible, fs};
 use futures::executor::ThreadPool;
+use tokio::sync::broadcast::{Receiver, Sender};
 use warp::{Filter, reply::Reply};
 
 mod opts;
 mod watch;
+
+fn refresh_receiver(sender: Sender<()>) -> impl Filter<Extract = (Receiver<()>, ), Error = Infallible> + Clone {
+    warp::any().map(move || sender.subscribe())
+}
 
 #[tokio::main]
 async fn main() {
@@ -17,14 +22,11 @@ async fn main() {
 
     let wants_to_watch = opts.watch;
     let pool = ThreadPool::new().unwrap();
-    let (refresh_tx, _) = tokio::sync::broadcast::channel::<()>(32);
-    
-    let tx2 = refresh_tx.clone();
-    let refresh_receiver = warp::any().map(move || tx2.subscribe());
+    let (refresh_sender, _) = tokio::sync::broadcast::channel::<()>(32);
 
     let watch = warp::path("__tennis")
         .and(warp::ws())
-        .and(refresh_receiver)
+        .and(refresh_receiver(refresh_sender.clone()))
         .map(|ws: warp::ws::Ws, refresh_receiver: tokio::sync::broadcast::Receiver<()>| {
             ws.on_upgrade(move |websocket| {
                 watch::handle_websocket_client(websocket, refresh_receiver)
@@ -51,7 +53,7 @@ async fn main() {
 
     if wants_to_watch {
         println!("Watching {} for changes…", opts.directory);
-        pool.spawn_ok(watch::watch_for_file_changes(opts.directory.clone(), refresh_tx));
+        pool.spawn_ok(watch::watch_for_file_changes(opts.directory.clone(), refresh_sender));
     }
 
     warp::serve(watch.or(file))

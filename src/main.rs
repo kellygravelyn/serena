@@ -63,7 +63,7 @@ async fn main() {
 
 async fn handle_request(req: Request<Body>, root_dir: String, watcher: Arc<FileWatcher>) -> Result<Response<Body>> {
     let path = req.uri().path();
-    if path == "/__tennis" {
+    if path == "/__serena" {
         if let Some(receiver) = watcher.subscribe() {
             refresh_events(receiver).await
         } else {

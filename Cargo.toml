@@ -1,6 +1,6 @@
 [package]
-name = "tennis"
-description = "A small static site server for local development"
+name = "serena"
+description = "Fast and lightweight static site server for local development."
 version = "0.1.0"
 authors = ["Nick Gravelyn <nick@nickgravelyn.com>"]
 edition = "2018"

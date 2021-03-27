@@ -549,6 +549,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "serena"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "futures",
+ "hyper",
+ "notify",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+]
+
+[[package]]
 name = "slab"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -579,19 +592,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-xid",
-]
-
-[[package]]
-name = "tennis"
-version = "0.1.0"
-dependencies = [
- "clap",
- "futures",
- "hyper",
- "notify",
- "tokio",
- "tokio-stream",
- "tokio-util",
 ]
 
 [[package]]

@@ -77,7 +77,7 @@ fn build_file_path(path: &str, root_dir: &String) -> PathBuf {
 static INJECTED_SCRIPT: &str = "
 <script>
     (() => {
-        let eventSource = new EventSource('/__tennis');
+        let eventSource = new EventSource('/__serena');
         eventSource.onmessage = () => location.reload();
     })();
 </script>

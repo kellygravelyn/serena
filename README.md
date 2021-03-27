@@ -13,11 +13,15 @@ tennis
 
 This will start a new server at `localhost:3000` which serves the current directory as a website.
 
-Of course you can also run `tennis --help` to see all the options available, including specifying a different directory, changing the port, etc.
+You can also specify options for the directory, port, and a flag to automatically reload browsers when files change:
+
+```sh
+tennis /path/to/directory --port=8080 --watch
+```
+
+Run `tennis --help` at any time to see the help guide.
 
 
 ## Development
 
-Tennis is written in [Rust](http://rust-lang.org) using [Warp](https://github.com/seanmonstar/warp) as the server framework.
-
-New feature requests and PRs are welcome, but please keep in mind that the goal is a very simple server for static files for local development.
+Tennis is written in [Rust](http://rust-lang.org). New feature requests and PRs are welcome, but please keep in mind that the goal is a very simple server for static files for local development.

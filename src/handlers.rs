@@ -1,7 +1,7 @@
-use std::{path::{Path, PathBuf}, time::Duration};
+use std::{fs::read_to_string, path::{Path, PathBuf}, time::Duration};
 
 use hyper::{Body, Response, Result, header::HeaderValue};
-use tokio::{fs::File, io::AsyncReadExt, sync::{broadcast::Receiver, mpsc::UnboundedSender}, time::sleep};
+use tokio::{fs::File, sync::{broadcast::Receiver, mpsc::UnboundedSender}, time::sleep};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::codec::{BytesCodec, FramedRead};
 
@@ -20,7 +20,7 @@ pub async fn transfer_file(path: &str, root_dir: String) -> Result<Response<Body
     let filepath = build_file_path(&path, &root_dir);
     if let Ok(file) = File::open(&filepath).await {
         if is_html_file(&filepath) {
-            html_response(file).await
+            html_response(&filepath).await
         } else {
             file_stream_response(&filepath, file).await
         }
@@ -29,9 +29,8 @@ pub async fn transfer_file(path: &str, root_dir: String) -> Result<Response<Body
     }
 }
 
-async fn html_response(mut file: File) -> Result<Response<Body>> {
-    let mut html = String::new();
-    if let Ok(_) = file.read_to_string(&mut html).await {
+async fn html_response(filepath: &Path) -> Result<Response<Body>> {
+    if let Ok(mut html) = read_to_string(filepath) {
         html.push_str(INJECTED_SCRIPT);
         Ok(Response::new(Body::from(html)))
     } else {
@@ -96,7 +95,6 @@ pub async fn refresh_events(refresh_receiver: Receiver<()>) -> Result<Response<B
             .header("content-type", "text/event-stream")
             .header("cache-control", "no-cache")
             .header("connection", "keep-alive")
-            .version(hyper::Version::HTTP_2)
             .body(Body::wrap_stream(UnboundedReceiverStream::new(receiver)))
             .unwrap()
     )

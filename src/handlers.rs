@@ -1,9 +1,11 @@
 use std::{path::{Path, PathBuf}, time::Duration};
 
-use hyper::{Body, Response, Result};
+use hyper::{Body, Response, Result, header::HeaderValue};
 use tokio::{fs::File, io::AsyncReadExt, sync::{broadcast::Receiver, mpsc::UnboundedSender}, time::sleep};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::codec::{BytesCodec, FramedRead};
+
+use crate::content_type::content_type_from_path;
 
 pub fn not_found() -> Result<Response<Body>> {
     Ok(
@@ -20,7 +22,7 @@ pub async fn transfer_file(path: &str, root_dir: String) -> Result<Response<Body
         if is_html_file(&filepath) {
             html_response(file).await
         } else {
-            file_stream_response(file).await
+            file_stream_response(&filepath, file).await
         }
     } else {
         not_found()
@@ -42,10 +44,18 @@ async fn html_response(mut file: File) -> Result<Response<Body>> {
     }
 }
 
-async fn file_stream_response(file: File) -> Result<Response<Body>> {
+async fn file_stream_response(filepath: &Path, file: File) -> Result<Response<Body>> {
     let stream = FramedRead::new(file, BytesCodec::new());
     let body = Body::wrap_stream(stream);
-    Ok(Response::new(body))
+
+    let mut response = Response::new(body);
+    if let Some(content_type) = content_type_from_path(filepath) {
+        response.headers_mut().insert(
+            "content-type", 
+            HeaderValue::from_str(&content_type[..]).unwrap()
+        );
+    }
+    Ok(response)
 }
 
 fn is_html_file(filepath: &Path) -> bool {

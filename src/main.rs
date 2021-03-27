@@ -20,6 +20,7 @@ use crate::{
     handlers::not_found
 };
 
+mod content_type;
 mod file_watcher;
 mod opts;
 mod handlers;

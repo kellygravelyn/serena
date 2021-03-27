@@ -8,9 +8,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 static INJECTED_SCRIPT: &str = "
 <script>
     (() => {
-        let eventSource = null;
-        console.log('[Tennis] Connecting to event source for automatic page reload');
-        eventSource = new EventSource('/__tennis');
+        let eventSource = new EventSource('/__tennis');
         eventSource.onmessage = () => location.reload();
     })();
 </script>

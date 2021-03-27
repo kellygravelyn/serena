@@ -1,38 +1,15 @@
 use std::time::Duration;
-use futures::{SinkExt, StreamExt, executor::ThreadPool};
+use futures::executor::ThreadPool;
 use notify::{RecommendedWatcher, Watcher, RecursiveMode, DebouncedEvent};
-use tokio::sync::broadcast::{Receiver, Sender};
-use warp::ws::{Message, WebSocket};
+use tokio::sync::broadcast::Sender;
 
 static INJECTED_SCRIPT: &str = "
 <script>
     (() => {
-        let socket = null;
-        let wasDisconnected = false;
-        let connectionAttempts = 0;
-        const openConnection = () => {
-            console.log('[Tennis] Connecting to web socket for automatic page reload', `ws://${location.host}/__tennis`);
-            socket = new WebSocket(`ws://${location.host}/__tennis`);
-            socket.onopen = () => {
-                connectionAttempts = 0;
-                if (wasDisconnected) {
-                    location.reload();
-                }
-            };
-            socket.onmessage = () => location.reload();
-            socket.onclose = () => {
-                wasDisconnected = true;
-                connectionAttempts++;
-
-                if (connectionAttempts < 12) {
-                    console.log('[Tennis] Web socket closed. Trying to reconnect in 5 seconds.');
-                    setTimeout(openConnection, 5000);
-                } else {
-                    console.log('[Tennis] Failed to reconnect to the websocket. Will no longer attempt to reconnect. Manually refresh the page once you have restarted the server.');
-                }
-            };
-        };
-        openConnection();
+        let eventSource = null;
+        console.log('[Tennis] Connecting to event source for automatic page reload');
+        eventSource = new EventSource('/__tennis');
+        eventSource.onmessage = () => location.reload();
     })();
 </script>
 ";
@@ -76,15 +53,6 @@ async fn watch_for_file_changes(directory: String, refresh: tokio::sync::broadca
             Err(e) => println!("Error watching: {:?}", e),
         }
     }
-}
-
-pub async fn handle_websocket_client(
-    websocket: WebSocket, 
-    mut refresh_receiver: Receiver<()>
-) {
-    let (mut tx, _) = websocket.split();
-    let _ = refresh_receiver.recv().await;
-    let _ = tx.send(Message::text("")).await;
 }
 
 pub fn initialize_watching(directory: String, wants_to_watch: bool) -> Sender<()> {

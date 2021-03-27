@@ -1104,6 +1104,7 @@ dependencies = [
  "hyper",
  "notify",
  "tokio",
+ "tokio-stream",
  "tokio-util",
  "warp",
 ]
@@ -1191,6 +1192,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]

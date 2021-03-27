@@ -1,19 +1,25 @@
-use std::{fs::read_to_string, path::{Path, PathBuf}, time::Duration};
+use std::{
+    fs::read_to_string,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
-use hyper::{Body, Response, Result, header::HeaderValue};
-use tokio::{fs::File, sync::{broadcast::Receiver, mpsc::UnboundedSender}, time::sleep};
+use hyper::{header::HeaderValue, Body, Response, Result};
+use tokio::{
+    fs::File,
+    sync::{broadcast::Receiver, mpsc::UnboundedSender},
+    time::sleep,
+};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::codec::{BytesCodec, FramedRead};
 
 use crate::content_type::content_type_from_path;
 
 pub fn not_found() -> Result<Response<Body>> {
-    Ok(
-        Response::builder()
-            .status(404)
-            .body(Body::from(""))
-            .unwrap()
-    )
+    Ok(Response::builder()
+        .status(404)
+        .body(Body::from(""))
+        .unwrap())
 }
 
 pub async fn transfer_file(path: &str, root_dir: String) -> Result<Response<Body>> {
@@ -34,12 +40,10 @@ async fn html_response(filepath: &Path) -> Result<Response<Body>> {
         html.push_str(INJECTED_SCRIPT);
         Ok(Response::new(Body::from(html)))
     } else {
-        Ok(
-            Response::builder()
-                .status(500)
-                .body(Body::from("Failed to read file"))
-                .unwrap()
-        )
+        Ok(Response::builder()
+            .status(500)
+            .body(Body::from("Failed to read file"))
+            .unwrap())
     }
 }
 
@@ -50,8 +54,8 @@ async fn file_stream_response(filepath: &Path, file: File) -> Result<Response<Bo
     let mut response = Response::new(body);
     if let Some(content_type) = content_type_from_path(filepath) {
         response.headers_mut().insert(
-            "content-type", 
-            HeaderValue::from_str(&content_type[..]).unwrap()
+            "content-type",
+            HeaderValue::from_str(&content_type[..]).unwrap(),
         );
     }
     Ok(response)
@@ -89,15 +93,13 @@ pub async fn refresh_events(refresh_receiver: Receiver<()>) -> Result<Response<B
     keep_alive(sender.clone());
     map_refresh_events(sender, refresh_receiver);
 
-    Ok(
-        Response::builder()
-            .status(200)
-            .header("content-type", "text/event-stream")
-            .header("cache-control", "no-cache")
-            .header("connection", "keep-alive")
-            .body(Body::wrap_stream(UnboundedReceiverStream::new(receiver)))
-            .unwrap()
-    )
+    Ok(Response::builder()
+        .status(200)
+        .header("content-type", "text/event-stream")
+        .header("cache-control", "no-cache")
+        .header("connection", "keep-alive")
+        .body(Body::wrap_stream(UnboundedReceiverStream::new(receiver)))
+        .unwrap())
 }
 
 fn keep_alive(sender: UnboundedSender<Result<String>>) {
@@ -112,20 +114,19 @@ fn keep_alive(sender: UnboundedSender<Result<String>>) {
     });
 }
 
-fn map_refresh_events(
-    sender: UnboundedSender<Result<String>>, 
-    mut refresh_receiver: Receiver<()>
-) {
-    tokio::spawn(async move { 
+fn map_refresh_events(sender: UnboundedSender<Result<String>>, mut refresh_receiver: Receiver<()>) {
+    tokio::spawn(async move {
         loop {
             match refresh_receiver.recv().await {
-                Ok(_) => { 
+                Ok(_) => {
                     if let Err(_) = sender.send(Ok("data: reload\n\n".to_string())) {
                         break;
-                    } 
-                },
-                Err(_) => { break; },
+                    }
+                }
+                Err(_) => {
+                    break;
+                }
             }
-        }  
+        }
     });
 }

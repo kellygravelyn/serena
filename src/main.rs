@@ -1,40 +1,28 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use hyper::{
-    Body, 
-    Error, 
-    Request, 
-    Response, 
-    Result, 
-    Server,
-    service::{
-        make_service_fn, 
-        service_fn
-    }
+    service::{make_service_fn, service_fn},
+    Body, Error, Request, Response, Result, Server,
 };
 
 use crate::{
-    file_watcher::FileWatcher, 
-    handlers::transfer_file, 
-    handlers::refresh_events,
-    handlers::not_found,
-    opts::Opts
+    file_watcher::FileWatcher, handlers::not_found, handlers::refresh_events,
+    handlers::transfer_file, opts::Opts,
 };
 
 mod content_type;
 mod file_watcher;
-mod opts;
 mod handlers;
+mod opts;
 
 #[tokio::main]
 async fn main() {
     let opts = Opts::parse();
     let addr = SocketAddr::from(([127, 0, 0, 1], opts.port));
-    
+
     println!(
         "Serving static files from {} at http://{}",
-        opts.directory,
-        addr
+        opts.directory, addr
     );
 
     let mut watcher = FileWatcher::new(opts.directory.clone());
@@ -47,7 +35,7 @@ async fn main() {
     let make_service = make_service_fn(move |_| {
         let root_dir = root_dir.clone();
         let watcher = watcher.clone();
-        async move { 
+        async move {
             Ok::<_, Error>(service_fn(move |req| {
                 handle_request(req, root_dir.clone(), watcher.clone())
             }))
@@ -61,7 +49,11 @@ async fn main() {
     }
 }
 
-async fn handle_request(req: Request<Body>, root_dir: String, watcher: Arc<FileWatcher>) -> Result<Response<Body>> {
+async fn handle_request(
+    req: Request<Body>,
+    root_dir: String,
+    watcher: Arc<FileWatcher>,
+) -> Result<Response<Body>> {
     let path = req.uri().path();
     if path == "/__serena" {
         if let Some(receiver) = watcher.subscribe() {
@@ -73,4 +65,3 @@ async fn handle_request(req: Request<Body>, root_dir: String, watcher: Arc<FileW
         transfer_file(path, root_dir).await
     }
 }
-

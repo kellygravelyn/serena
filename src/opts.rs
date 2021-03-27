@@ -1,11 +1,4 @@
-use clap::{
-    App, 
-    Arg, 
-    ArgMatches, 
-    crate_description, 
-    crate_name, 
-    crate_version
-};
+use clap::{crate_description, crate_name, crate_version, App, Arg, ArgMatches};
 
 #[derive(Debug)]
 pub struct Opts {
@@ -25,7 +18,11 @@ impl Opts {
         };
         let watch = matches.is_present("watch");
 
-        Opts { directory, port, watch }
+        Opts {
+            directory,
+            port,
+            watch,
+        }
     }
 }
 
@@ -36,7 +33,7 @@ fn get_matches_from_clap() -> ArgMatches<'static> {
         .arg(
             Arg::with_name("DIRECTORY")
                 .help("The directory that will act as the root for static files")
-                .default_value(".")
+                .default_value("."),
         )
         .arg(
             Arg::with_name("port")
@@ -45,14 +42,13 @@ fn get_matches_from_clap() -> ArgMatches<'static> {
                 .value_name("PORT")
                 .help("The port on which to run the server")
                 .takes_value(true)
-                .default_value("3000")
+                .default_value("3000"),
         )
         .arg(
             Arg::with_name("watch")
                 .short("w")
                 .long("watch")
-                .help("Automatically refresh browsers when a change is detected"
-            )
+                .help("Automatically refresh browsers when a change is detected"),
         )
         .get_matches()
 }

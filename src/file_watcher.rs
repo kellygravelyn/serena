@@ -1,5 +1,5 @@
+use notify::{DebouncedEvent, RecommendedWatcher, RecursiveMode, Watcher};
 use std::{thread::JoinHandle, time::Duration};
-use notify::{RecommendedWatcher, Watcher, RecursiveMode, DebouncedEvent};
 use tokio::sync::broadcast::{Receiver, Sender};
 
 pub struct FileWatcher {
@@ -19,15 +19,13 @@ impl FileWatcher {
 
     pub fn start_watching(&mut self) {
         let (refresh_sender, _) = tokio::sync::broadcast::channel::<()>(32);
-        
+
         let dir = self.directory.clone();
         let thread_sender = refresh_sender.clone();
-        self.thread = Some(
-            std::thread::spawn(move || {
-                watch_for_file_changes(dir, thread_sender)
-            })
-        );
-        
+        self.thread = Some(std::thread::spawn(move || {
+            watch_for_file_changes(dir, thread_sender)
+        }));
+
         self.sender = Some(refresh_sender);
     }
 
@@ -67,28 +65,28 @@ fn watch_for_file_changes(directory: String, refresh: Sender<()>) {
 
                         // ignore errors for now
                         let _ = refresh.send(());
-                    },
+                    }
                     DebouncedEvent::Remove(p) => {
                         println!("File removed: {:?}", p);
 
                         // ignore errors for now
                         let _ = refresh.send(());
-                    },
+                    }
                     DebouncedEvent::Rename(p1, p2) => {
                         println!("File renamed: {:?} -> {:?}", p1, p2);
 
                         // ignore errors for now
                         let _ = refresh.send(());
-                    },
+                    }
                     DebouncedEvent::Rescan => {
                         println!("Directory had to be rescanned");
 
                         // ignore errors for now
                         let _ = refresh.send(());
-                    },
-                    _ => {},
+                    }
+                    _ => {}
                 }
-            },
+            }
             Err(e) => println!("Error watching: {:?}", e),
         }
     }

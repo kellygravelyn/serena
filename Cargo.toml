@@ -14,4 +14,3 @@ notify = "4.0.15"
 tokio = { version = "1.4.0", features = ["full"] }
 tokio-stream = { version = "0.1.5", features = ["sync"] }
 tokio-util = { version = "0.6.5", features = ["codec"] }
-warp = "0.3.0"

@@ -14,17 +14,15 @@ use hyper::{
 };
 
 use crate::{
-    common::not_found, 
     file_watcher::FileWatcher, 
-    statics::transfer_static_file, 
-    watch::refresh_events
+    handlers::transfer_file, 
+    handlers::refresh_events,
+    handlers::not_found
 };
 
-mod common;
 mod file_watcher;
 mod opts;
-mod statics;
-mod watch;
+mod handlers;
 
 #[tokio::main]
 async fn main() {
@@ -49,7 +47,7 @@ async fn main() {
         let watcher = watcher.clone();
         async move { 
             Ok::<_, Error>(service_fn(move |req| {
-                routes(req, root_dir.clone(), watcher.clone())
+                handle_request(req, root_dir.clone(), watcher.clone())
             }))
         }
     });
@@ -61,7 +59,7 @@ async fn main() {
     }
 }
 
-async fn routes(req: Request<Body>, root_dir: String, watcher: Arc<FileWatcher>) -> Result<Response<Body>> {
+async fn handle_request(req: Request<Body>, root_dir: String, watcher: Arc<FileWatcher>) -> Result<Response<Body>> {
     let path = req.uri().path();
     if path == "/__tennis" {
         if let Some(receiver) = watcher.subscribe() {
@@ -70,7 +68,7 @@ async fn routes(req: Request<Body>, root_dir: String, watcher: Arc<FileWatcher>)
             not_found()
         }
     } else {
-        transfer_static_file(path, root_dir).await
+        transfer_file(path, root_dir).await
     }
 }
 

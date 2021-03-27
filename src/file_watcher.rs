@@ -2,12 +2,9 @@ use std::{thread::JoinHandle, time::Duration};
 use notify::{RecommendedWatcher, Watcher, RecursiveMode, DebouncedEvent};
 use tokio::sync::broadcast::{Receiver, Sender};
 
-pub type FileChangedSender = Sender<()>;
-pub type FileChangedReceiver = Receiver<()>;
-
 pub struct FileWatcher {
     thread: Option<JoinHandle<()>>,
-    sender: Option<FileChangedSender>,
+    sender: Option<Sender<()>>,
     directory: String,
 }
 
@@ -22,6 +19,7 @@ impl FileWatcher {
 
     pub fn start_watching(&mut self) {
         let (refresh_sender, _) = tokio::sync::broadcast::channel::<()>(32);
+        
         let dir = self.directory.clone();
         let thread_sender = refresh_sender.clone();
         self.thread = Some(
@@ -29,6 +27,7 @@ impl FileWatcher {
                 watch_for_file_changes(dir, thread_sender)
             })
         );
+        
         self.sender = Some(refresh_sender);
     }
 
@@ -39,7 +38,7 @@ impl FileWatcher {
         self.sender = None;
     }
 
-    pub fn subscribe(&self) -> Option<FileChangedReceiver> {
+    pub fn subscribe(&self) -> Option<Receiver<()>> {
         if let Some(s) = &self.sender {
             Some(s.subscribe())
         } else {
@@ -54,7 +53,7 @@ impl Drop for FileWatcher {
     }
 }
 
-fn watch_for_file_changes(directory: String, refresh: FileChangedSender) {
+fn watch_for_file_changes(directory: String, refresh: Sender<()>) {
     let (tx, rx) = std::sync::mpsc::channel();
     let mut watcher: RecommendedWatcher = Watcher::new(tx, Duration::from_millis(200)).unwrap();
     watcher.watch(directory, RecursiveMode::Recursive).unwrap();

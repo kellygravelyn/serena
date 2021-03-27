@@ -17,7 +17,8 @@ use crate::{
     file_watcher::FileWatcher, 
     handlers::transfer_file, 
     handlers::refresh_events,
-    handlers::not_found
+    handlers::not_found,
+    opts::Opts
 };
 
 mod content_type;
@@ -27,7 +28,7 @@ mod handlers;
 
 #[tokio::main]
 async fn main() {
-    let opts = opts::parse();
+    let opts = Opts::parse();
     let addr = SocketAddr::from(([127, 0, 0, 1], opts.port));
     
     println!(

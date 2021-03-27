@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 
 use hyper::{
     Body, 
@@ -13,9 +13,18 @@ use hyper::{
     }
 };
 
+use crate::{
+    common::not_found, 
+    file_watcher::FileWatcher, 
+    statics::transfer_static_file, 
+    watch::refresh_events
+};
+
+mod common;
+mod file_watcher;
 mod opts;
-mod watch;
 mod statics;
+mod watch;
 
 #[tokio::main]
 async fn main() {
@@ -28,15 +37,19 @@ async fn main() {
         addr
     );
 
-    let refresh_sender = watch::initialize_watching(opts.directory.clone(), opts.watch);
+    let mut watcher = FileWatcher::new(opts.directory.clone());
+    if opts.watch {
+        watcher.start_watching();
+    }
+    let watcher = Arc::new(watcher);
 
     let root_dir = opts.directory.clone();
     let make_service = make_service_fn(move |_| {
         let root_dir = root_dir.clone();
-        let refresh_receiver = refresh_sender.clone();
+        let watcher = watcher.clone();
         async move { 
             Ok::<_, Error>(service_fn(move |req| {
-                routes(req, root_dir.clone(), refresh_receiver.subscribe())
+                routes(req, root_dir.clone(), watcher.clone())
             }))
         }
     });
@@ -48,12 +61,16 @@ async fn main() {
     }
 }
 
-async fn routes(req: Request<Body>, root_dir: String, refresh_receiver: tokio::sync::broadcast::Receiver<()>) -> Result<Response<Body>> {
+async fn routes(req: Request<Body>, root_dir: String, watcher: Arc<FileWatcher>) -> Result<Response<Body>> {
     let path = req.uri().path();
     if path == "/__tennis" {
-        watch::refresh_events(refresh_receiver).await
+        if let Some(receiver) = watcher.subscribe() {
+            refresh_events(receiver).await
+        } else {
+            not_found()
+        }
     } else {
-        statics::transfer_static_file(path, root_dir).await
+        transfer_static_file(path, root_dir).await
     }
 }
 

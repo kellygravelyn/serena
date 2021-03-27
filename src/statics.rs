@@ -4,7 +4,7 @@ use hyper::{Body, Response, Result};
 use tokio::{fs::File, io::AsyncReadExt};
 use tokio_util::codec::{BytesCodec, FramedRead};
 
-use crate::watch;
+use crate::{common::not_found, watch::attach_script};
 
 pub async fn transfer_static_file(path: &str, root_dir: String) -> Result<Response<Body>> {
     let filepath = build_file_path(&path, &root_dir);
@@ -19,19 +19,10 @@ pub async fn transfer_static_file(path: &str, root_dir: String) -> Result<Respon
     }
 }
 
-fn not_found() -> Result<Response<Body>> {
-    Ok(
-        Response::builder()
-            .status(404)
-            .body(Body::from(""))
-            .unwrap()
-    )
-}
-
 async fn html_response(mut file: File) -> Result<Response<Body>> {
     let mut html = String::new();
     if let Ok(_) = file.read_to_string(&mut html).await {
-        watch::attach_script(&mut html);
+        attach_script(&mut html);
         Ok(Response::new(Body::from(html)))
     } else {
         Ok(

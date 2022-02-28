@@ -1,7 +1,7 @@
 [package]
 name = "serena"
 description = "Fast and lightweight static site server for local development."
-version = "1.0.0"
+version = "1.1.0"
 authors = ["Kelly Gravelyn <kelly@kellyrenee.me>"]
 edition = "2018"
 

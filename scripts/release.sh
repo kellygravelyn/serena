@@ -28,7 +28,7 @@ if [ -z "$(git status --porcelain)" ]; then
         echo "Creating git commit and tag…"
         git add CHANGELOG.md Cargo.toml Cargo.lock
         git commit -m "$new_version"
-        git tag -a "v$new_version" -m "Release $new_version"
+        git tag -a "$new_version" -m "Release $new_version"
 
         echo "Done!"
     fi

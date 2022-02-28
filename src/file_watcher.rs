@@ -38,6 +38,16 @@ impl Drop for FileWatcher {
     }
 }
 
+fn should_notify_change(p: &std::path::PathBuf) -> bool {
+    for comp in p {
+        if comp.to_str().unwrap().starts_with('.') {
+            return false;
+        }
+    }
+
+    true
+}
+
 fn watch_for_file_changes(directory: String, refresh: Sender<()>) {
     let (tx, rx) = std::sync::mpsc::channel();
     let mut watcher: RecommendedWatcher = Watcher::new(tx, Duration::from_millis(200)).unwrap();
@@ -48,22 +58,28 @@ fn watch_for_file_changes(directory: String, refresh: Sender<()>) {
             Ok(event) => {
                 match event {
                     DebouncedEvent::Write(p) => {
-                        println!("File changed: {:?}", p);
+                        if should_notify_change(&p) {
+                            println!("File changed: {:?}", p);
 
-                        // ignore errors for now
-                        let _ = refresh.send(());
+                            // ignore errors for now
+                            let _ = refresh.send(());
+                        }
                     }
                     DebouncedEvent::Remove(p) => {
-                        println!("File removed: {:?}", p);
+                        if should_notify_change(&p) {
+                            println!("File removed: {:?}", p);
 
-                        // ignore errors for now
-                        let _ = refresh.send(());
+                            // ignore errors for now
+                            let _ = refresh.send(());
+                        }
                     }
                     DebouncedEvent::Rename(p1, p2) => {
-                        println!("File renamed: {:?} -> {:?}", p1, p2);
+                        if should_notify_change(&p1) || should_notify_change(&p2) {
+                            println!("File renamed: {:?} -> {:?}", p1, p2);
 
-                        // ignore errors for now
-                        let _ = refresh.send(());
+                            // ignore errors for now
+                            let _ = refresh.send(());
+                        }
                     }
                     DebouncedEvent::Rescan => {
                         println!("Directory had to be rescanned");

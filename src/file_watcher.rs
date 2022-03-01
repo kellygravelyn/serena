@@ -38,6 +38,55 @@ impl Drop for FileWatcher {
     }
 }
 
+fn watch_for_file_changes(directory: String, refresh: Sender<()>) {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let mut watcher: RecommendedWatcher = Watcher::new(tx, Duration::from_millis(200)).unwrap();
+    watcher.watch(directory, RecursiveMode::Recursive).unwrap();
+
+    loop {
+        match rx.recv() {
+            Ok(event) => handle_watch_event(event, &refresh),
+            Err(e) => println!("Error watching: {:?}", e),
+        }
+    }
+}
+
+fn handle_watch_event(event: notify::DebouncedEvent, refresh: &Sender<()>) {
+    match event {
+        DebouncedEvent::Write(p) => {
+            if should_notify_change(&p) {
+                println!("File changed: {:?}", p);
+
+                // ignore errors for now
+                let _ = refresh.send(());
+            }
+        }
+        DebouncedEvent::Remove(p) => {
+            if should_notify_change(&p) {
+                println!("File removed: {:?}", p);
+
+                // ignore errors for now
+                let _ = refresh.send(());
+            }
+        }
+        DebouncedEvent::Rename(p1, p2) => {
+            if should_notify_change(&p1) || should_notify_change(&p2) {
+                println!("File renamed: {:?} -> {:?}", p1, p2);
+
+                // ignore errors for now
+                let _ = refresh.send(());
+            }
+        }
+        DebouncedEvent::Rescan => {
+            println!("Directory had to be rescanned");
+
+            // ignore errors for now
+            let _ = refresh.send(());
+        }
+        _ => {}
+    }
+}
+
 fn should_notify_change(p: &std::path::PathBuf) -> bool {
     for comp in p {
         if comp.to_str().unwrap().starts_with('.') {
@@ -46,51 +95,4 @@ fn should_notify_change(p: &std::path::PathBuf) -> bool {
     }
 
     true
-}
-
-fn watch_for_file_changes(directory: String, refresh: Sender<()>) {
-    let (tx, rx) = std::sync::mpsc::channel();
-    let mut watcher: RecommendedWatcher = Watcher::new(tx, Duration::from_millis(200)).unwrap();
-    watcher.watch(directory, RecursiveMode::Recursive).unwrap();
-
-    loop {
-        match rx.recv() {
-            Ok(event) => {
-                match event {
-                    DebouncedEvent::Write(p) => {
-                        if should_notify_change(&p) {
-                            println!("File changed: {:?}", p);
-
-                            // ignore errors for now
-                            let _ = refresh.send(());
-                        }
-                    }
-                    DebouncedEvent::Remove(p) => {
-                        if should_notify_change(&p) {
-                            println!("File removed: {:?}", p);
-
-                            // ignore errors for now
-                            let _ = refresh.send(());
-                        }
-                    }
-                    DebouncedEvent::Rename(p1, p2) => {
-                        if should_notify_change(&p1) || should_notify_change(&p2) {
-                            println!("File renamed: {:?} -> {:?}", p1, p2);
-
-                            // ignore errors for now
-                            let _ = refresh.send(());
-                        }
-                    }
-                    DebouncedEvent::Rescan => {
-                        println!("Directory had to be rescanned");
-
-                        // ignore errors for now
-                        let _ = refresh.send(());
-                    }
-                    _ => {}
-                }
-            }
-            Err(e) => println!("Error watching: {:?}", e),
-        }
-    }
 }

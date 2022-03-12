@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.2.0 - 2022-03-11
+
 - Add content type for `.js` files
 
 ## 1.1.0 - 2022-02-28

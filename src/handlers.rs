@@ -22,7 +22,7 @@ pub async fn handle_request(
     watcher: Option<Arc<FileWatcher>>,
 ) -> Result<Response<Body>> {
     if let Some(refresh_receiver) = is_refresh_request(&req, watcher) {
-        return refresh_events(refresh_receiver).await;
+        refresh_events(refresh_receiver).await
     } else {
         transfer_file(req.uri().path(), root_dir).await
     }

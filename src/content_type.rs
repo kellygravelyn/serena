@@ -7,6 +7,7 @@ pub fn content_type_from_path(path: &Path) -> Option<String> {
     if let Some(ext) = path.extension() {
         match ext.to_str() {
             Some("svg") => Some("image/svg+xml".to_string()),
+            Some("js") => Some("application/javascript".to_string()),
             _ => None,
         }
     } else {

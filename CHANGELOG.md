@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add content type for `.js` files
+
 ## 1.1.0 - 2022-02-28
 
 - Filter out files/directories that start with a `.` from the file watcher. This prevents serena from reloading the page when, for example, a file in the `.git` directory changes.

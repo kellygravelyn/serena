@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replace content type logic with [mime_guess](https://github.com/abonander/mime_guess)
+
 ## 1.2.0 - 2022-03-11
 
 - Add content type for `.js` files

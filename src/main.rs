@@ -9,7 +9,6 @@ use webbrowser;
 
 use crate::{file_watcher::FileWatcher, handlers::handle_request, opts::Opts};
 
-mod content_type;
 mod file_watcher;
 mod handlers;
 mod opts;

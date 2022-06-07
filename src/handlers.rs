@@ -14,7 +14,7 @@ use tokio::{
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::codec::{BytesCodec, FramedRead};
 
-use crate::{content_type::content_type_from_path, file_watcher::FileWatcher};
+use crate::{file_watcher::FileWatcher};
 
 pub async fn handle_request(
     req: Request<Body>,
@@ -78,10 +78,11 @@ async fn file_stream_response(filepath: &Path, file: File) -> Result<Response<Bo
     let body = Body::wrap_stream(stream);
 
     let mut response = Response::new(body);
-    if let Some(content_type) = content_type_from_path(filepath) {
+    let guess = mime_guess::from_path(filepath);
+    if let Some(content_type) = guess.first() {
         response.headers_mut().insert(
             "content-type",
-            HeaderValue::from_str(&content_type[..]).unwrap(),
+            HeaderValue::from_str(content_type.essence_str()).unwrap(),
         );
     }
     Ok(response)

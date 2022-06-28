@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Updated crate dependencies per Dependabot alert
+
 ## 1.3.0 - 2022-06-06
 
 - Replace content type logic with [mime_guess](https://github.com/abonander/mime_guess)
